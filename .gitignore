@@ -14,6 +14,13 @@ dist-ssr
 coverage
 *.local
 
+# Nest / Prisma
+apps/server/data/*.db
+apps/server/data/*.db-journal
+apps/server/.env
+*.db
+*.db-journal
+
 /cypress/videos/
 /cypress/screenshots/
 

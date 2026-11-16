@@ -1,0 +1,34 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  code         String     @id
+  title        String?
+  createdAt    DateTime   @default(now())
+  lastActiveAt DateTime   @default(now())
+  updates      YUpdate[]
+  snapshot     YSnapshot?
+}
+
+model YUpdate {
+  id        Int      @id @default(autoincrement())
+  code      String
+  session   Session  @relation(fields: [code], references: [code], onDelete: Cascade)
+  data      Bytes
+  createdAt DateTime @default(now())
+
+  @@index([code])
+}
+
+model YSnapshot {
+  code      String   @id
+  session   Session  @relation(fields: [code], references: [code], onDelete: Cascade)
+  data      Bytes
+  updatedAt DateTime @updatedAt
+}
