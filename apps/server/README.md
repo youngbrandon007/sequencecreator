@@ -18,6 +18,12 @@ npm run start:dev
 
 Server defaults to `http://localhost:3001`.
 
+Open the live demo UI (two browser windows to try sync):
+
+```text
+http://localhost:3001/
+```
+
 Against a running server:
 
 ```sh
