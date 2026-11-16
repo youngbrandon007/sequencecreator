@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sequence Creator — Live Session Demo</title>
+    <style>
+      :root {
+        --bg: #0f1419;
+        --panel: #1a222c;
+        --ink: #e8eef4;
+        --muted: #8b9aab;
+        --accent: #3d9cf0;
+        --ok: #3ecf8e;
+        --bad: #f07178;
+        --line: #2a3542;
+        --field: #121820;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+        background:
+          radial-gradient(1200px 600px at 10% -10%, #1b3a55 0%, transparent 55%),
+          radial-gradient(900px 500px at 100% 0%, #243018 0%, transparent 45%),
+          var(--bg);
+        color: var(--ink);
+      }
+      main {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 32px 20px 64px;
+      }
+      h1 {
+        font-family: "IBM Plex Serif", Georgia, serif;
+        font-weight: 600;
+        font-size: 1.75rem;
+        margin: 0 0 8px;
+        letter-spacing: -0.02em;
+      }
+      .lede {
+        color: var(--muted);
+        margin: 0 0 28px;
+        line-height: 1.45;
+      }
+      .panel {
+        background: color-mix(in srgb, var(--panel) 92%, black);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 18px;
+        margin-bottom: 16px;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      label {
+        display: block;
+        font-size: 0.8rem;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      input {
+        width: 100%;
+        background: var(--field);
+        border: 1px solid var(--line);
+        color: var(--ink);
+        border-radius: 8px;
+        padding: 10px 12px;
+        font: inherit;
+      }
+      input:focus {
+        outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent);
+        border-color: var(--accent);
+      }
+      button {
+        border: 0;
+        border-radius: 8px;
+        padding: 10px 14px;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+        background: var(--accent);
+        color: #041018;
+      }
+      button.secondary {
+        background: transparent;
+        color: var(--ink);
+        border: 1px solid var(--line);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.9rem;
+        color: var(--muted);
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--bad);
+      }
+      .dot.on { background: var(--ok); }
+      .code {
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 1.6rem;
+        letter-spacing: 0.18em;
+        margin: 4px 0 0;
+      }
+      .hint {
+        color: var(--muted);
+        font-size: 0.85rem;
+        margin-top: 8px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th, td {
+        text-align: left;
+        padding: 8px 6px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      th {
+        color: var(--muted);
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      td input {
+        padding: 8px 10px;
+      }
+      .actions { white-space: nowrap; }
+      .grow { flex: 1; min-width: 140px; }
+      .hidden { display: none; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Live session demo</h1>
+      <p class="lede">
+        Create or join a session with a short code. Open this page in two
+        windows to see edits sync over the NestJS + Yjs server.
+      </p>
+
+      <section id="lobby" class="panel">
+        <div class="row">
+          <div class="grow">
+            <label for="title">Session title (optional)</label>
+            <input id="title" placeholder="Friday show" />
+          </div>
+          <div style="align-self: end">
+            <button id="createBtn" type="button">Create session</button>
+          </div>
+        </div>
+        <div class="row" style="margin-top: 14px">
+          <div class="grow">
+            <label for="joinCode">Or join with code</label>
+            <input id="joinCode" placeholder="e.g. K7M2QX" maxlength="8" />
+          </div>
+          <div style="align-self: end">
+            <button id="joinBtn" class="secondary" type="button">Join</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="room" class="panel hidden">
+        <div class="row" style="justify-content: space-between">
+          <div>
+            <div class="status">
+              <span id="dot" class="dot"></span>
+              <span id="statusText">Disconnected</span>
+            </div>
+            <p class="code" id="roomCode">------</p>
+            <p class="hint" id="roomTitle"></p>
+          </div>
+          <button id="leaveBtn" class="secondary" type="button">Leave</button>
+        </div>
+      </section>
+
+      <section id="editor" class="panel hidden">
+        <div class="row" style="justify-content: space-between; margin-bottom: 10px">
+          <strong>Shared entries</strong>
+          <button id="addBtn" type="button">Add entry</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Event</th>
+              <th>People</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="entriesBody"></tbody>
+        </table>
+        <p class="hint">
+          Edits write into a shared Y.Doc via <code>ws://…/yjs/&lt;code&gt;</code>.
+        </p>
+      </section>
+    </main>
+
+    <script type="module">
+      import * as Y from 'https://esm.sh/yjs@13.6.33';
+      import { WebsocketProvider } from 'https://esm.sh/y-websocket@3.0.0';
+
+      const apiBase = window.location.origin;
+      const wsBase = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/yjs`;
+
+      const lobby = document.getElementById('lobby');
+      const room = document.getElementById('room');
+      const editor = document.getElementById('editor');
+      const entriesBody = document.getElementById('entriesBody');
+      const statusText = document.getElementById('statusText');
+      const dot = document.getElementById('dot');
+      const roomCode = document.getElementById('roomCode');
+      const roomTitle = document.getElementById('roomTitle');
+
+      let doc = null;
+      let provider = null;
+      let entries = null;
+      let observer = null;
+
+      function setStatus(connected, synced) {
+        dot.classList.toggle('on', connected && synced);
+        if (!connected) statusText.textContent = 'Disconnected';
+        else if (!synced) statusText.textContent = 'Connected — syncing…';
+        else statusText.textContent = 'Connected — live';
+      }
+
+      function showRoom(code, title) {
+        lobby.classList.add('hidden');
+        room.classList.remove('hidden');
+        editor.classList.remove('hidden');
+        roomCode.textContent = code;
+        roomTitle.textContent = title ? title : 'Untitled session';
+      }
+
+      function showLobby() {
+        lobby.classList.remove('hidden');
+        room.classList.add('hidden');
+        editor.classList.add('hidden');
+        setStatus(false, false);
+      }
+
+      function render() {
+        const active = document.activeElement;
+        const activeIndex = active instanceof HTMLInputElement ? active.dataset.index : null;
+        const activeField = active instanceof HTMLInputElement ? active.dataset.field : null;
+        const activePos =
+          active instanceof HTMLInputElement ? active.selectionStart : null;
+
+        entriesBody.innerHTML = '';
+        entries.forEach((item, index) => {
+          if (!(item instanceof Y.Map)) return;
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><input data-field="name" data-index="${index}" value="${escapeAttr(item.get('name') || '')}" /></td>
+            <td><input data-field="event" data-index="${index}" value="${escapeAttr(item.get('event') || '')}" /></td>
+            <td><input data-field="people" data-index="${index}" value="${escapeAttr(item.get('people') || '')}" /></td>
+            <td class="actions"><button class="secondary" data-remove="${index}" type="button">Remove</button></td>
+          `;
+          entriesBody.appendChild(tr);
+        });
+
+        if (activeIndex != null && activeField) {
+          const next = entriesBody.querySelector(
+            `input[data-index="${activeIndex}"][data-field="${activeField}"]`,
+          );
+          if (next instanceof HTMLInputElement) {
+            next.focus();
+            if (activePos != null) next.setSelectionRange(activePos, activePos);
+          }
+        }
+      }
+
+      function escapeAttr(value) {
+        return String(value)
+          .replaceAll('&', '&amp;')
+          .replaceAll('"', '&quot;')
+          .replaceAll('<', '&lt;');
+      }
+
+      function connect(code, title) {
+        disconnect();
+        doc = new Y.Doc();
+        entries = doc.getArray('entries');
+        provider = new WebsocketProvider(wsBase, code, doc);
+        provider.on('status', ({ status }) => {
+          setStatus(status === 'connected', provider.synced);
+        });
+        provider.on('sync', (synced) => {
+          setStatus(provider.wsconnected, synced);
+          render();
+        });
+        observer = () => render();
+        // Nested Y.Map field edits need observeDeep, not observe.
+        entries.observeDeep(observer);
+        showRoom(code, title);
+        render();
+        const url = new URL(location.href);
+        url.searchParams.set('code', code);
+        history.replaceState(null, '', url);
+      }
+
+      function disconnect() {
+        if (entries && observer) entries.unobserveDeep(observer);
+        if (provider) {
+          provider.destroy();
+          provider = null;
+        }
+        if (doc) {
+          doc.destroy();
+          doc = null;
+        }
+        entries = null;
+        observer = null;
+      }
+
+      document.getElementById('createBtn').onclick = async () => {
+        const title = document.getElementById('title').value.trim();
+        const res = await fetch(`${apiBase}/api/sessions`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(title ? { title } : {}),
+        });
+        if (!res.ok) {
+          alert('Failed to create session');
+          return;
+        }
+        const data = await res.json();
+        connect(data.code, data.title);
+      };
+
+      document.getElementById('joinBtn').onclick = async () => {
+        const code = document.getElementById('joinCode').value.trim().toUpperCase();
+        const res = await fetch(`${apiBase}/api/sessions/${encodeURIComponent(code)}`);
+        if (!res.ok) {
+          alert('Session not found or invalid code');
+          return;
+        }
+        const data = await res.json();
+        connect(data.code, data.title);
+      };
+
+      document.getElementById('leaveBtn').onclick = () => {
+        disconnect();
+        showLobby();
+        const url = new URL(location.href);
+        url.searchParams.delete('code');
+        history.replaceState(null, '', url);
+      };
+
+      document.getElementById('addBtn').onclick = () => {
+        if (!doc || !entries) return;
+        // Integrate the map into the doc before setting fields.
+        doc.transact(() => {
+          const map = new Y.Map();
+          entries.push([map]);
+          map.set('name', '');
+          map.set('event', '');
+          map.set('people', '');
+        });
+      };
+
+      entriesBody.addEventListener('input', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLInputElement)) return;
+        const index = Number(target.dataset.index);
+        const field = target.dataset.field;
+        const item = entries?.get(index);
+        if (item instanceof Y.Map && field) item.set(field, target.value);
+      });
+
+      entriesBody.addEventListener('click', (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLButtonElement)) return;
+        if (target.dataset.remove == null) return;
+        const index = Number(target.dataset.remove);
+        entries?.delete(index, 1);
+      });
+
+      const bootCode = new URL(location.href).searchParams.get('code');
+      if (bootCode) {
+        document.getElementById('joinCode').value = bootCode;
+        document.getElementById('joinBtn').click();
+      }
+    </script>
+  </body>
+</html>
