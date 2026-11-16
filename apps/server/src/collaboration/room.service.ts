@@ -140,6 +140,28 @@ export class RoomService implements OnModuleDestroy {
     void this.releaseIfEmpty(room.code);
   }
 
+  /** Force-close an in-memory room without persisting (e.g. HTTP delete). */
+  dispose(code: string): void {
+    const room = this.rooms.get(code);
+    if (!room) {
+      return;
+    }
+    for (const ws of [...room.conns.keys()]) {
+      try {
+        ws.close(1000, 'session deleted');
+      } catch {
+        // ignore
+      }
+    }
+    room.conns.clear();
+    room.unbindBroadcast();
+    room.unbindPersistence();
+    room.awareness.destroy();
+    room.doc.destroy();
+    this.rooms.delete(code);
+    this.logger.debug(`Disposed room ${code}`);
+  }
+
   async onModuleDestroy(): Promise<void> {
     const codes = [...this.rooms.keys()];
     for (const code of codes) {

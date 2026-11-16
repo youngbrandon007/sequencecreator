@@ -18,6 +18,12 @@ npm run start:dev
 
 Server defaults to `http://localhost:3001`.
 
+Against a running server:
+
+```sh
+npm run smoke
+```
+
 ## API
 
 | Method | Path | Description |
@@ -72,4 +78,13 @@ src/
   health/
   config/
   common/
+scripts/
+  smoke.mjs         # HTTP + multi-client Yjs + persistence checks
 ```
+
+## Notes
+
+- The WebSocket handshake waits until the in-memory room is loaded, so the
+  client's first sync frames are not dropped on cold start / reconnect.
+- Persist writes are chained per session; unload flushes before snapshotting.
+- `DELETE /api/sessions/:code` closes any live room sockets, then removes DB rows.

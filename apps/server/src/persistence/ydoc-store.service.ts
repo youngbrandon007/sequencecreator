@@ -8,6 +8,8 @@ import { PrismaService } from './prisma.service';
 @Injectable()
 export class YdocStoreService {
   private readonly logger = new Logger(YdocStoreService.name);
+  /** Serialize persist writes per session so unload can await a flush. */
+  private readonly writeChains = new Map<string, Promise<void>>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -21,7 +23,7 @@ export class YdocStoreService {
       where: { code },
     });
     if (snapshot) {
-      Y.applyUpdate(doc, new Uint8Array(snapshot.data));
+      Y.applyUpdate(doc, new Uint8Array(snapshot.data), 'ydoc-store-load');
     }
 
     const updates = await this.prisma.yUpdate.findMany({
@@ -29,7 +31,7 @@ export class YdocStoreService {
       orderBy: { id: 'asc' },
     });
     for (const update of updates) {
-      Y.applyUpdate(doc, new Uint8Array(update.data));
+      Y.applyUpdate(doc, new Uint8Array(update.data), 'ydoc-store-load');
     }
 
     return doc;
@@ -55,21 +57,31 @@ export class YdocStoreService {
   }
 
   async saveSnapshot(code: string, doc: Y.Doc): Promise<void> {
+    await this.flush(code);
     await this.compaction.compactFromDoc(code, doc);
+  }
+
+  async flush(code: string): Promise<void> {
+    const chain = this.writeChains.get(code) ?? Promise.resolve();
+    await chain.catch(() => undefined);
   }
 
   bindPersistence(code: string, doc: Y.Doc): () => void {
     const handler = (update: Uint8Array, origin: unknown) => {
-      // Skip echoes from our own load/apply if marked; persist peer + local edits.
       if (origin === 'ydoc-store-load') {
         return;
       }
-      void this.storeUpdate(code, update).catch((err: unknown) => {
-        this.logger.error(
-          `Failed to persist update for ${code}`,
-          err instanceof Error ? err.stack : String(err),
-        );
-      });
+      const previous = this.writeChains.get(code) ?? Promise.resolve();
+      const next = previous
+        .catch(() => undefined)
+        .then(() => this.storeUpdate(code, update))
+        .catch((err: unknown) => {
+          this.logger.error(
+            `Failed to persist update for ${code}`,
+            err instanceof Error ? err.stack : String(err),
+          );
+        });
+      this.writeChains.set(code, next);
     };
     doc.on('update', handler);
     return () => {

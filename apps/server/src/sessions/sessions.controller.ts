@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  HttpStatus,
   Param,
   Post,
 } from '@nestjs/common';
@@ -16,6 +17,7 @@ export class SessionsController {
   constructor(private readonly sessions: SessionsService) {}
 
   @Post()
+  @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateSessionDto) {
     return this.sessions.create(dto);
   }

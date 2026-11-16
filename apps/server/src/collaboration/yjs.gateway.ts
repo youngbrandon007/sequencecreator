@@ -4,6 +4,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { HttpAdapterHost } from '@nestjs/core';
 import type { IncomingMessage } from 'http';
 import type { Duplex } from 'stream';
@@ -12,7 +13,6 @@ import {
   isValidJoinCode,
   normalizeJoinCode,
 } from '../common/utils/alphabet';
-import { ConfigService } from '@nestjs/config';
 import type { AppConfig } from '../config/configuration';
 import { SessionsService } from '../sessions/sessions.service';
 import { RoomService } from './room.service';
@@ -73,49 +73,51 @@ export class YjsGateway implements OnModuleInit, OnModuleDestroy {
       const length = this.config.get('joinCodeLength', { infer: true });
       const code = normalizeJoinCode(match[1]);
       if (!isValidJoinCode(code, length)) {
-        socket.write('HTTP/1.1 400 Bad Request\r\n\r\n');
-        socket.destroy();
+        this.reject(socket, 400, 'Bad Request');
         return;
       }
 
       try {
         await this.sessions.assertExists(code);
       } catch {
-        socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
-        socket.destroy();
+        this.reject(socket, 404, 'Not Found');
         return;
       }
 
+      // Load the room BEFORE finishing the WS handshake so the client's
+      // immediate sync step-1 is not dropped (no handler yet).
+      const room = await this.rooms.getOrLoad(code);
+
       if (!this.wss) {
-        socket.destroy();
+        this.reject(socket, 503, 'Service Unavailable');
+        return;
+      }
+
+      if (socket.destroyed) {
         return;
       }
 
       this.wss.handleUpgrade(request, socket, head, (ws: WebSocket) => {
-        void this.onConnection(ws, code);
+        this.connections.attach(ws, room);
+        this.logger.debug(
+          `Client connected to ${code} (${room.conns.size} total)`,
+        );
       });
     } catch (err) {
       this.logger.error(
         'WebSocket upgrade failed',
         err instanceof Error ? err.stack : String(err),
       );
-      socket.destroy();
+      this.reject(socket, 500, 'Internal Server Error');
     }
   }
 
-  private async onConnection(ws: WebSocket, code: string): Promise<void> {
+  private reject(socket: Duplex, status: number, reason: string): void {
     try {
-      const room = await this.rooms.getOrLoad(code);
-      this.connections.attach(ws, room);
-      this.logger.debug(
-        `Client connected to ${code} (${room.conns.size} total)`,
-      );
-    } catch (err) {
-      this.logger.error(
-        `Failed to attach client to ${code}`,
-        err instanceof Error ? err.stack : String(err),
-      );
-      ws.close();
+      socket.write(`HTTP/1.1 ${status} ${reason}\r\nConnection: close\r\n\r\n`);
+    } catch {
+      // ignore
     }
+    socket.destroy();
   }
 }

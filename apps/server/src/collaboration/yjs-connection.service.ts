@@ -12,6 +12,7 @@ import type { RoomState } from './types/room-state';
 
 const MESSAGE_SYNC = 0;
 const MESSAGE_AWARENESS = 1;
+const MESSAGE_QUERY_AWARENESS = 3;
 
 @Injectable()
 export class YjsConnectionService {
@@ -37,7 +38,10 @@ export class YjsConnectionService {
       }
     };
 
+    let closed = false;
     const closeConn = () => {
+      if (closed) return;
+      closed = true;
       ws.off('message', onMessage);
       ws.off('close', closeConn);
       ws.off('error', closeConn);
@@ -72,6 +76,18 @@ export class YjsConnectionService {
               decoding.readVarUint8Array(decoder),
               ws,
             );
+            break;
+          }
+          case MESSAGE_QUERY_AWARENESS: {
+            const encoder = encoding.createEncoder();
+            encoding.writeVarUint(encoder, MESSAGE_AWARENESS);
+            encoding.writeVarUint8Array(
+              encoder,
+              encodeAwarenessUpdate(room.awareness, [
+                ...room.awareness.getStates().keys(),
+              ]),
+            );
+            send(encoding.toUint8Array(encoder));
             break;
           }
           default:
